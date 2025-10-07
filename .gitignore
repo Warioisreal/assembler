@@ -1,0 +1,4 @@
+*.out
+binary_file
+*.txt
+*.o
