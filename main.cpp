@@ -1,6 +1,7 @@
 #include <stdio.h>
 
 #include "asm.h"
+#include "file_func.h"
 
 
 int main(void) {
@@ -10,9 +11,7 @@ int main(void) {
     GetFileName(data_filename, DEFAULT_FILENAME_DATA);
     GetFileName(data_o_filename, DEFAULT_FILENAME_DATA_O);
 
-    size_t cmd_count = 0;
-
-    if (Assembler(data_filename, data_o_filename, &cmd_count)) { return 1; }
+    if (Assembler(data_filename, data_o_filename)) { return 1; }
 
     return 0;
 }
