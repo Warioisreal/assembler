@@ -10,8 +10,8 @@ int main(void) {
 
     GetFileName(data_filename, DEFAULT_FILENAME_DATA);
     GetFileName(data_o_filename, DEFAULT_FILENAME_DATA_O);
-
-    if (Assembler(data_filename, data_o_filename)) { return 1; }
+    size_t count = 0;
+    if (Assembler(data_filename, data_o_filename, &count)) { return 1; }
 
     return 0;
 }

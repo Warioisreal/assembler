@@ -1,9 +1,18 @@
 #ifndef _ASSEMBLER_H_
 #define _ASSEMBLER_H_
 
-static const size_t CMD_SIZE = 20;
+#include "../stack/stack.h"
+
+static const size_t CMD_SIZE = 25;
 static const size_t SIGNATURE = 0x4D5341; // "ASM" в little-endian
 static const size_t VERSION = 1;
+static const char* ASSEMBLER_LISTING_FILENAME = "assembler_list.txt";
+
+struct FileHeader {
+    size_t signature = 0;
+    size_t version   = 0;
+    size_t data_size = 0;
+};
 
 enum class CMD : char {
     CMD_HLT   = 0,
@@ -24,15 +33,31 @@ enum class CMD : char {
     CMD_JAE   = 15,
     CMD_JE    = 16,
     CMD_JNE   = 17,
-    CMD_PUSHR = 18, // 33
-    CMD_POPR  = 19  // 34
+    CMD_CALL  = 18,
+    CMD_RET   = 19,
+    CMD_PUSHR = 20,
+    CMD_POPR  = 21,
+    CMD_PUSHM = 22,
+    CMD_POPM  = 23,
+    CMD_NOP   = 24
 };
 
+typedef enum class ASM_ERROR : char {
+    ASM_OK                 = 0,
+    ASM_FILE_OPEN_ERROR    = 1,
+    ASM_FILE_READ_ERROR    = 2,
+    ASM_BUFFER_ALLOC_ERROR = 3,
+    ASM_UNKNOWN_COMMAND    = 4,
+    ASM_INVALID_ARGUMENT   = 5,
+    ASM_LABEL_ERROR        = 6,
+    ASM_FILE_WRITE_ERROR   = 7
+} asm_error_t;
+
 typedef struct Command {
-    const char* text_cmd = "HLT";
-    size_t cmd_len = 0;
-    CMD cmd        = CMD::CMD_HLT;
-    int int_cmd    = 0;
+    const char* text_cmd    = "HLT";
+    size_t cmd_len          = 0;
+    CMD cmd                 = CMD::CMD_HLT;
+    stack_elem_t int_cmd    = 0;
 } cmd;
 
 static const cmd CMD_ARRAY[CMD_SIZE] = {
@@ -54,16 +79,16 @@ static const cmd CMD_ARRAY[CMD_SIZE] = {
     {"JAE",   3, CMD::CMD_JAE,   15},
     {"JE",    2, CMD::CMD_JE,    16},
     {"JNE",   3, CMD::CMD_JNE,   17},
-    {"PUSHR", 5, CMD::CMD_PUSHR, 18}, // 33
-    {"POPR",  4, CMD::CMD_POPR,  19}  // 34
+    {"CALL",  4, CMD::CMD_CALL,  18},
+    {"RET",   3, CMD::CMD_RET,   19},
+    {"PUSHR", 5, CMD::CMD_PUSHR, 20},
+    {"POPR",  4, CMD::CMD_POPR,  21},
+    {"PUSHM", 5, CMD::CMD_PUSHM, 22},
+    {"POPM",  4, CMD::CMD_POPM,  23},
+    {"NOP",   3, CMD::CMD_NOP,   24}
 };
 
-struct FileHeader {
-    size_t signature = 0;
-    size_t version   = 0;
-    size_t data_size = 0;
-};
-
-int Assembler(const char* filename_in, const char* filename_out);
+int Assembler(const char* filename_in, const char* filename_out, size_t* count);
+void DumpAsmError(asm_error_t error);
 
 #endif // _ASSEMBLER_H_
