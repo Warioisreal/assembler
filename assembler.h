@@ -7,6 +7,7 @@ static const size_t CMD_SIZE = 25;
 static const size_t SIGNATURE = 0x4D5341; // "ASM" в little-endian
 static const size_t VERSION = 1;
 static const char* ASSEMBLER_LISTING_FILENAME = "assembler_list.txt";
+static const double EPSILON = 10e-7;
 
 struct FileHeader {
     size_t signature = 0;

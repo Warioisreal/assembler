@@ -5,6 +5,8 @@
 #include <string.h>
 #include <ctype.h>
 
+#include <math.h>
+
 #include "color_lib.h"
 
 #include "assembler.h"
@@ -16,6 +18,7 @@ static asm_error_t WriteFromBufferToDataO(char* buf, const char* filename, size_
 static void PrintLabelsArray(const int labels[10], FILE* asm_lst);
 static void PrintListingHeader(FILE* asm_lst, size_t count);
 static void PrintCommandListing(FILE* asm_lst, size_t index, const char* mnemonic, const char* operand, stack_elem_t code);
+static int ComparisonNumb(const double val1, const double val2);
 static void WriteCMD(size_t* buf_index, char** text_com, size_t* bytes_processed, size_t* listing_index,
                      bool* command_found, stack_elem_t** code_buffer, FILE* asm_lst,
                      const int labels[10], char* buf, size_t filesize);
@@ -105,16 +108,20 @@ static asm_error_t ReadDataToBuffer(char** buf, const char* filename, size_t* fi
     assert (buf      != nullptr);
     assert (filename != nullptr);
 
+    char full_path[128] = "";
+
+    snprintf(full_path, 128, "%s%s", "asm_programs/", filename);
+
     struct stat file_stat;
-    if (stat(filename, &file_stat) != 0) {
-        PRINT_COLOR_VAR(RED, "filesize read error: \"%s\"\n", filename);
+    if (stat(full_path, &file_stat) != 0) {
+        PRINT_COLOR_VAR(RED, "filesize read error: \"%s\"\n", full_path);
         return asm_error_t::ASM_FILE_READ_ERROR;
     }
     *filesize = (size_t)(file_stat.st_size);
 
-    FILE* file = fopen(filename, "rb");
+    FILE* file = fopen(full_path, "rb");
     if (file == nullptr) {
-        PRINT_COLOR_VAR(RED, "file open error: \"%s\"\n", filename);
+        PRINT_COLOR_VAR(RED, "file open error: \"%s\"\n", full_path);
         return asm_error_t::ASM_FILE_OPEN_ERROR;
     }
 
@@ -129,11 +136,11 @@ static asm_error_t ReadDataToBuffer(char** buf, const char* filename, size_t* fi
     size_t fread_filesize = fread(*buf, sizeof(char), *filesize, file);
     if (*filesize > fread_filesize) {
         if (feof(file)) {
-            PRINT_COLOR_VAR(RED, "reached EOF: \"%s\"\n", filename);
+            PRINT_COLOR_VAR(RED, "reached EOF: \"%s\"\n", full_path);
         } else if (ferror(file)) {
-            PRINT_COLOR_VAR(RED, "file read error: \"%s\"\n", filename);
+            PRINT_COLOR_VAR(RED, "file read error: \"%s\"\n", full_path);
         } else {
-            PRINT_COLOR_VAR(RED, "(fread.size != filesize) filesize error:  \"%s\"\n", filename);
+            PRINT_COLOR_VAR(RED, "(fread.size != filesize) filesize error:  \"%s\"\n", full_path);
         }
         FreeBuffer(buf);
         fclose(file);
@@ -188,19 +195,21 @@ static asm_error_t FillLabelsArray(char* buf, size_t* count, int labels[10], siz
                     CMD_ARRAY[pos].cmd == CMD::CMD_PUSHM || CMD_ARRAY[pos].cmd == CMD::CMD_POPM || \
                     CMD_ARRAY[pos].cmd == CMD::CMD_CALL)
                 {
-                    (*count)++;
                     text_command = strchr(text_command, '\0') + 1;
                     bytes_processed = (size_t)(text_command - buf);
                     while (text_command[0] == '\0' && bytes_processed < filesize) { text_command++; bytes_processed++; } // skip spaces in txt_cmd
 
                     atof_result = atof(text_command);
-                    if (text_command[0] == ':' || (text_command[0] == '0' && text_command[1] == '\0' && atof_result == 0) || atof_result) {
-                        (*count)++;
-                    } else {
+                    if (!(text_command[0] == ':' || \
+                         (text_command[0] == '0' && text_command[1] == '\0' && ComparisonNumb(atof_result, 0) == 0) || \
+                         ComparisonNumb(atof_result, 0) != 0))
+                    {
                         PRINT_COLOR_VAR(RED, "Invalid argument: %s\n", text_command);
                         return asm_error_t::ASM_INVALID_ARGUMENT;
                     }
-                } else { (*count)++; }
+                    (*count)++;
+                }
+                (*count)++;
                 break;
             }
         }
@@ -208,8 +217,7 @@ static asm_error_t FillLabelsArray(char* buf, size_t* count, int labels[10], siz
             if (text_command[0] == ':') {
                 labels[text_command[1] - '0'] = (int)(++(*count));
             } else if (text_command[0] == ';') {
-                text_command = strchr(text_command, '\0') + 1;
-                bytes_processed = (size_t)(text_command - buf);
+                (*count)++;
             } else {
                 PRINT_COLOR_VAR(RED, "Unknown command: %s\n", text_command);
                 return asm_error_t::ASM_UNKNOWN_COMMAND;
@@ -229,6 +237,7 @@ static asm_error_t WriteFromBufferToDataO(char* buf, const char* filename, const
     assert(buf      != nullptr);
     assert(filename != nullptr);
     assert(labels   != nullptr);
+
     FILE* file = fopen(filename, "wb");
     if (file == nullptr) {
         PRINT_COLOR_VAR(RED, "file open error: \"%s\"\n", filename);
@@ -344,7 +353,23 @@ static void PrintListingHeader(FILE* asm_lst, size_t count) {
 //----------------------------------------------------------------------------------
 
 static void PrintCommandListing(FILE* asm_lst, size_t index, const char* mnemonic, const char* operand, stack_elem_t code) {
-    fprintf(asm_lst, "%-6zu  %-6.0f  %-10s  %-10s\n", index, code, mnemonic, operand);
+    fprintf(asm_lst, "%-6zu  %-6.0lf  %-10s  %-10s\n", index, code, mnemonic, operand);
+}
+
+//----------------------------------------------------------------------------------
+
+static int ComparisonNumb(const double val1, const double val2) {
+
+    assert (isfinite (val1));
+    assert (isfinite (val2));
+
+    if (val1 - val2 > EPSILON) {
+        return 1;
+    } else if (val1 - val2 < -EPSILON) {
+        return -1;
+    } else {
+        return 0;
+    }
 }
 
 //----------------------------------------------------------------------------------
@@ -392,15 +417,13 @@ static void WriteCMD(size_t* buf_index, char** text_com, size_t* bytes_processed
                                         CMD_ARRAY[pos].int_cmd);
                 }
             } else { // Команда без аргументов
-                printf("1\n");
                 (*code_buffer)[(*buf_index)++] = CMD_ARRAY[pos].int_cmd;
-                printf("%s | ", CMD_ARRAY[pos].text_cmd);
-                printf("%lg\n", CMD_ARRAY[pos].int_cmd);
-                //PrintCommandListing(asm_lst,
-                //                    *listing_index,
-                //                    CMD_ARRAY[pos].text_cmd,
-                //                    "",
-                //                    CMD_ARRAY[pos].int_cmd);
+
+                PrintCommandListing(asm_lst,
+                                    *listing_index,
+                                    CMD_ARRAY[pos].text_cmd,
+                                    "",
+                                    CMD_ARRAY[pos].int_cmd);
             }
             *text_com = strchr(*text_com, '\0') + 1;
             *bytes_processed = (size_t)((*text_com) - buf);
